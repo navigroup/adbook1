@@ -1062,8 +1062,12 @@
               linear-gradient(180deg, rgba(57, 75, 131, .92), rgba(20, 24, 39, .94));
             box-shadow: 0 40px 90px rgba(0, 0, 0, .18);
             border: 1px solid rgba(57, 75, 131, .16);
+        
           }
 
+#inspirationVideoSlider .slider{
+  isolation: isolate; /* ✅ 외부 z-index 영향 최소화 */
+}
           #inspirationVideoSlider .slides {
             display: flex;
             width: 300%;
@@ -1081,18 +1085,19 @@
             padding: 10px;
           }
 
-          /* ✅ 잘림 방지 */
-          #inspirationVideoSlider video {
-            width: 100%;
-            height: 100%;
-            display: block;
-            object-fit: contain;
-            object-position: center;
-            border-radius: 20px;
-            background: transparent;
-            box-shadow: 0 18px 45px rgba(0, 0, 0, .26);
-            outline: 1px solid rgba(255, 255, 255, .10);
-          }
+          /* ✅ 잘림 방지 + 버튼 클릭 방해 제거 */
+#inspirationVideoSlider video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 20px;
+  background: transparent;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, .26);
+  outline: 1px solid rgba(255, 255, 255, .10);
+  pointer-events: none; /* ✅ 추가(정상 위치) */
+}
 
           /* ===== Dots ===== */
           #inspirationVideoSlider .dots {
@@ -1116,34 +1121,48 @@
             background: var(--brand-700);
             transform: scale(1.2);
           }
+/* ===== Arrows (✅ 클릭 100% 보장) ===== */
+#inspirationVideoSlider .nav{
+  position:absolute;
+  inset:0;
+  z-index:9999;
+  pointer-events:auto; /* ✅ none -> auto 로 변경 */
+}
 
-          /* ===== Arrows (✅ 클릭되게 수정) ===== */
-          #inspirationVideoSlider .nav {
-            position: absolute;
-            inset: 0;
-            z-index: 5;
-            /* ✅ 비디오보다 위 */
-            pointer-events: auto;
-            /* ✅ 클릭 막지 않음 */
-          }
 
-          #inspirationVideoSlider .btn {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 44px;
-            height: 44px;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, .16);
-            background: rgba(255, 255, 255, .08);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            display: grid;
-            place-items: center;
-            cursor: pointer;
-            box-shadow: 0 18px 40px rgba(0, 0, 0, .18);
-            transition: transform .16s ease, background .16s ease;
-          }
+#inspirationVideoSlider .btn{
+  position:absolute;
+  top:50%;
+  transform: translateY(-50%);
+  width:44px;
+  height:44px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  box-shadow:0 18px 40px rgba(0,0,0,.18);
+  transition: transform .16s ease, background .16s ease;
+
+  pointer-events:auto;           /* ✅ 버튼만 클릭 가능 */
+  z-index:10000;
+}
+
+#inspirationVideoSlider .btn:hover{
+  transform: translateY(-50%) scale(1.04);
+  background: rgba(255,255,255,.12);
+}
+#inspirationVideoSlider .btn:active{
+  transform: translateY(-50%) scale(.98);
+}
+
+#inspirationVideoSlider .btn.prev{ left:12px; }
+#inspirationVideoSlider .btn.next{ right:12px; }
+
+#inspirationVideoSlider .btn svg{ width:20px; height:20px; }
 
           #inspirationVideoSlider .btn:hover {
             transform: translateY(-50%) scale(1.04);
@@ -1200,6 +1219,11 @@
               transition: none;
             }
           }
+          /* ✅ 버튼이 무조건 위 + 클릭 보장 */
+#inspirationVideoSlider .slides{ position: relative; z-index: 1; }
+#inspirationVideoSlider .nav{ position:absolute; inset:0; z-index: 9999; }
+#inspirationVideoSlider .btn{ z-index: 10000; pointer-events:auto; }
+#inspirationVideoSlider video{ pointer-events:none; } /* 이미 있으면 OK */
         </style>
 
         <div class="ivs-wrap">
@@ -1296,6 +1320,18 @@
             function start() { stop(); timer = window.setInterval(function () { goTo(index + 1); }, 5200); }
             function stop() { if (timer) { window.clearInterval(timer); timer = 0; } }
 
+            // ✅ 버튼 누를 때 slider의 pointerdown(스와이프)이 가로채지 못하게 막기
+function stopSwipeSteal(e){
+  e.stopPropagation();
+}
+if (btnPrev){
+  btnPrev.addEventListener('pointerdown', stopSwipeSteal, true);
+  btnPrev.addEventListener('touchstart', stopSwipeSteal, { capture:true, passive:true });
+}
+if (btnNext){
+  btnNext.addEventListener('pointerdown', stopSwipeSteal, true);
+  btnNext.addEventListener('touchstart', stopSwipeSteal, { capture:true, passive:true });
+}
             if (btnPrev) btnPrev.addEventListener('click', function (e) {
               e.preventDefault();
               stop(); goTo(index - 1); start();
@@ -1313,10 +1349,13 @@
             // swipe
             var sx = 0, dx = 0, dragging = false;
             if (slider) {
-              slider.addEventListener('pointerdown', function (e) {
-                dragging = true; sx = e.clientX; dx = 0; stop();
-                try { slider.setPointerCapture(e.pointerId); } catch (err) { }
-              });
+          slider.addEventListener('pointerdown', function (e) {
+  // ✅ 버튼/닷을 눌렀으면 스와이프 시작하지 않음
+  if (e.target.closest('.nav, .btn, [data-ivs-prev], [data-ivs-next], .dots, [data-ivs-dot]')) return;
+
+  dragging = true; sx = e.clientX; dx = 0; stop();
+  try { slider.setPointerCapture(e.pointerId); } catch (err) { }
+});
               slider.addEventListener('pointermove', function (e) {
                 if (!dragging) return;
                 dx = e.clientX - sx;
@@ -4564,26 +4603,26 @@
           <div class="mb-6">
             <h3 class="text-lg font-bold mb-3">관련 도서</h3>
             <div class="space-y-4">
-              <a href="https://product.kyobobook.co.kr/detail/S000214874666"
+              <a href="https://product.kyobobook.co.kr/detail/S000218305047"
                 class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
                 <div class="w-16 h-16 flex-shrink-0 overflow-hidden rounded">
-                  <img src="https://contents.kyobobook.co.kr/sih/fit-in/458x0/pdt/9791194114055.jpg" alt="명상의 힘"
+                  <img src="https://contents.kyobobook.co.kr/sih/fit-in/458x0/pdt/9791194114109.jpg" alt="명상의 힘"
                     class="w-full h-full" style="object-fit: contain;">
                 </div>
                 <div class="ml-3">
-                  <h4 class="font-medium text-sm">운 좋은 놈이 성공한다 </h4>
-                  <p class="text-xs text-gray-500">경제불황 30년 동안 승승장구한 1% 부자의 웨인 다이어의 성공비결</p>
+                  <h4 class="font-medium text-sm">별난 부자 사이토 히토리의 그릇</h4>
+                  <p class="text-xs text-gray-500">내 그릇의 크기가 내 운명을 결정한다!</p>
                 </div>
               </a>
-              <a href="https://product.kyobobook.co.kr/detail/S000211745020"
+              <a href="https://product.kyobobook.co.kr/detail/S000216175186"
                 class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
                 <div class="w-16 h-16 flex-shrink-0 overflow-hidden rounded">
-                  <img src="https://image.yes24.com/goods/124226256/XL" alt="바라는 대로 이루어진다다" class="w-full h-full"
+                  <img src="https://contents.kyobobook.co.kr/sih/fit-in/458x0/pdt/9791194114079.jpg" alt="포지티브 에너지 파워" class="w-full h-full"
                     style="object-fit: contain;">
                 </div>
                 <div class="ml-3">
-                  <h4 class="font-medium text-sm">바라는 대로 이루어진다</h4>
-                  <p class="text-xs text-gray-500">세계 영향력 1위 의학 박사 디팩 초프라의 고품격 자기 계발서! </p>
+                  <h4 class="font-medium text-sm">포지티브 에너지 파워</h4>
+                  <p class="text-xs text-gray-500">당신의 운명은 포지티브 에너지가 결정한다! </p>
                 </div>
               </a>
               <a href="https://product.kyobobook.co.kr/detail/S000213674290"
@@ -4921,7 +4960,21 @@
       });
     });
   </script>
+<script>
+document.addEventListener('click', function(e){
+  const a = e.target.closest('a');
+  if(!a) return;
 
+  // ✅ 외부 링크이거나 새탭(target=_blank)이면 무조건 통과
+  const isExternal = a.origin !== location.origin;
+  if (isExternal || a.target === '_blank') {
+    // 혹시 다른 코드가 막아도 강제로 열어줌
+    window.open(a.href, '_blank', 'noopener');
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true); // ✅ 캡처 단계에서 먼저 잡기
+</script>
 </body>
 
 </html>
